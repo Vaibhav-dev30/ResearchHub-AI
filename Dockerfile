@@ -17,9 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/ ./backend/
 
-# Pre-download the fastembed model during build so it doesn't happen at runtime
-# This bakes the 90MB model directly into the Docker image
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2')"
+# We are using the HuggingFace API, so no local model downloads are needed!
+# This drastically reduces the Docker image size and RAM footprint.
 
 # Expose port (fallback for local)
 EXPOSE 8000

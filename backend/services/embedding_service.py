@@ -1,21 +1,31 @@
-from fastembed import TextEmbedding
+import os
+import requests
+from fastapi import HTTPException
 
-# Load model globally so it's loaded only once into memory
-# fastembed automatically downloads and caches the model
-model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2", threads=1, providers=["CPUExecutionProvider"])
+# We use the free HuggingFace Inference API to avoid OOM limits on Render
+API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+
+def _get_headers():
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        raise HTTPException(status_code=500, detail="HF_TOKEN environment variable is not set. Please add your HuggingFace API token in Render.")
+    return {"Authorization": f"Bearer {hf_token}"}
 
 def get_embedding(text: str) -> list[float]:
     """
-    Generates an embedding vector for a given text string.
+    Generates an embedding vector for a given text string using HF API.
     """
-    # fastembed returns a generator, so we use next() to get the first (and only) result
-    embedding = next(model.embed([text]))
-    # Convert numpy array to list for database insertion
-    return embedding.tolist()
+    response = requests.post(API_URL, headers=_get_headers(), json={"inputs": [text]})
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"HuggingFace API error: {response.text}")
+    # The API returns a list of lists, we want the first one
+    return response.json()[0]
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
-    Generates embedding vectors for a list of text strings.
+    Generates embedding vectors for a list of text strings using HF API.
     """
-    embeddings = list(model.embed(texts))
-    return [e.tolist() for e in embeddings]
+    response = requests.post(API_URL, headers=_get_headers(), json={"inputs": texts})
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"HuggingFace API error: {response.text}")
+    return response.json()
