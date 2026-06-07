@@ -87,20 +87,38 @@ def _search_arxiv(query: str, max_results: int = 8) -> List[schemas.SearchRespon
 # ─────────────────────── Auth Routes ────────────────────────────────────────
 @app.post("/register", response_model=schemas.UserResponse, tags=["Auth"])
 def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
+    # Debug logging for registration database URL
+    print(f"DEBUG REGISTER: Database URL schema is: {database.DATABASE_URL.split('@')[-1] if '@' in database.DATABASE_URL else database.DATABASE_URL}")
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
+        print(f"DEBUG REGISTER: Username '{user.username}' is already registered.")
         raise HTTPException(status_code=400, detail="Username already registered")
+    
     hashed_password = auth.get_password_hash(user.password)
+    print(f"DEBUG REGISTER: Hashing password for '{user.username}'. Hash: {hashed_password}")
     new_user = models.User(username=user.username, hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    print(f"DEBUG REGISTER: User '{user.username}' successfully registered with ID {new_user.id}.")
     return new_user
 
 
 @app.post("/login", response_model=schemas.Token, tags=["Auth"])
 def login(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    
+    # Debug logging to identify Vercel authentication issues
+    if not db_user:
+        print(f"DEBUG LOGIN: User '{user.username}' NOT found in database.")
+    else:
+        print(f"DEBUG LOGIN: User '{user.username}' found in database. Hashed password: {db_user.hashed_password}")
+        try:
+            is_verified = auth.verify_password(user.password, db_user.hashed_password)
+            print(f"DEBUG LOGIN: Password verification result: {is_verified}")
+        except Exception as e:
+            print(f"DEBUG LOGIN: Exception during verify_password: {str(e)}")
+
     if not db_user or not auth.verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
