@@ -85,40 +85,32 @@ def _search_arxiv(query: str, max_results: int = 8) -> List[schemas.SearchRespon
 
 
 # ─────────────────────── Auth Routes ────────────────────────────────────────
+def _log_activity(db: Session, user_id: int, activity_type: str, data: dict = None):
+    """Fire-and-forget activity log entry."""
+    try:
+        entry = models.UserActivity(user_id=user_id, activity_type=activity_type, activity_data=data or {})
+        db.add(entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 @app.post("/register", response_model=schemas.UserResponse, tags=["Auth"])
 def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
-    # Debug logging for registration database URL
-    print(f"DEBUG REGISTER: Database URL schema is: {database.DATABASE_URL.split('@')[-1] if '@' in database.DATABASE_URL else database.DATABASE_URL}")
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
-        print(f"DEBUG REGISTER: Username '{user.username}' is already registered.")
         raise HTTPException(status_code=400, detail="Username already registered")
-    
     hashed_password = auth.get_password_hash(user.password)
-    print(f"DEBUG REGISTER: Hashing password for '{user.username}'. Hash: {hashed_password}")
     new_user = models.User(username=user.username, hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    print(f"DEBUG REGISTER: User '{user.username}' successfully registered with ID {new_user.id}.")
     return new_user
 
 
 @app.post("/login", response_model=schemas.Token, tags=["Auth"])
 def login(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
-    
-    # Debug logging to identify Vercel authentication issues
-    if not db_user:
-        print(f"DEBUG LOGIN: User '{user.username}' NOT found in database.")
-    else:
-        print(f"DEBUG LOGIN: User '{user.username}' found in database. Hashed password: {db_user.hashed_password}")
-        try:
-            is_verified = auth.verify_password(user.password, db_user.hashed_password)
-            print(f"DEBUG LOGIN: Password verification result: {is_verified}")
-        except Exception as e:
-            print(f"DEBUG LOGIN: Exception during verify_password: {str(e)}")
-
     if not db_user or not auth.verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -154,9 +146,11 @@ def search_papers(
 @app.post("/chat", tags=["AI"])
 def chat(
     request: schemas.ChatRequest,
+    db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
     response = chat_with_llm(request.message, paper_context=request.paper_context)
+    _log_activity(db, current_user.id, "chat", {"message_snippet": request.message[:80]})
     return {"reply": response}
 
 
@@ -194,6 +188,7 @@ def save_analysis(
     db.add(record)
     db.commit()
     db.refresh(record)
+    _log_activity(db, current_user.id, "save_analysis", {"title": payload.title})
     return record
 
 
@@ -250,10 +245,159 @@ def delete_saved_analysis(
     return {"message": "Analysis deleted successfully"}
 
 
+# ─────────────────────── User Profile ───────────────────────────────────────
+@app.get("/profile", response_model=schemas.ProfileResponse, tags=["Profile"])
+def get_profile(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    profile = db.query(models.UserProfile).filter(models.UserProfile.user_id == current_user.id).first()
+    if not profile:
+        # Auto-create empty profile on first access
+        profile = models.UserProfile(user_id=current_user.id)
+        db.add(profile)
+        db.commit()
+        db.refresh(profile)
+
+    saved_count = db.query(models.SavedAnalysis).filter(models.SavedAnalysis.user_id == current_user.id).count()
+    chat_count = db.query(models.UserActivity).filter(
+        models.UserActivity.user_id == current_user.id,
+        models.UserActivity.activity_type == "chat"
+    ).count()
+
+    return schemas.ProfileResponse(
+        id=current_user.id,
+        username=current_user.username,
+        full_name=profile.full_name or "",
+        bio=profile.bio or "",
+        institution=profile.institution or "",
+        research_interests=profile.research_interests or "",
+        avatar_url=profile.avatar_url or "",
+        joined_at=profile.created_at,
+        saved_papers_count=saved_count,
+        total_chats=chat_count,
+        profile_updated_at=profile.updated_at,
+    )
+
+
+@app.put("/profile", response_model=schemas.ProfileResponse, tags=["Profile"])
+def update_profile(
+    payload: schemas.UserProfileUpdate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    profile = db.query(models.UserProfile).filter(models.UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = models.UserProfile(user_id=current_user.id)
+        db.add(profile)
+
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(profile, field, value)
+
+    from datetime import datetime, timezone
+    profile.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(profile)
+
+    saved_count = db.query(models.SavedAnalysis).filter(models.SavedAnalysis.user_id == current_user.id).count()
+    chat_count = db.query(models.UserActivity).filter(
+        models.UserActivity.user_id == current_user.id,
+        models.UserActivity.activity_type == "chat"
+    ).count()
+
+    return schemas.ProfileResponse(
+        id=current_user.id,
+        username=current_user.username,
+        full_name=profile.full_name or "",
+        bio=profile.bio or "",
+        institution=profile.institution or "",
+        research_interests=profile.research_interests or "",
+        avatar_url=profile.avatar_url or "",
+        joined_at=profile.created_at,
+        saved_papers_count=saved_count,
+        total_chats=chat_count,
+        profile_updated_at=profile.updated_at,
+    )
+
+
+@app.get("/analytics", response_model=schemas.AnalyticsResponse, tags=["Profile"])
+def get_analytics(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    from sqlalchemy import func
+    from collections import Counter
+
+    # Monthly papers saved
+    analyses = db.query(models.SavedAnalysis).filter(
+        models.SavedAnalysis.user_id == current_user.id
+    ).all()
+
+    month_counter: Counter = Counter()
+    keyword_counter: Counter = Counter()
+    for a in analyses:
+        month_key = a.created_at.strftime("%Y-%m") if a.created_at else "unknown"
+        month_counter[month_key] += 1
+        if a.keywords:
+            for kw in a.keywords.split(","):
+                kw = kw.strip()
+                if kw:
+                    keyword_counter[kw] += 1
+
+    papers_by_month = [
+        schemas.MonthlyCount(month=k, count=v)
+        for k, v in sorted(month_counter.items())
+    ]
+
+    top_keywords = [
+        {"keyword": kw, "count": cnt}
+        for kw, cnt in keyword_counter.most_common(10)
+    ]
+
+    # Monthly chats
+    chat_activities = db.query(models.UserActivity).filter(
+        models.UserActivity.user_id == current_user.id,
+        models.UserActivity.activity_type == "chat"
+    ).all()
+    chat_month_counter: Counter = Counter()
+    for a in chat_activities:
+        month_key = a.created_at.strftime("%Y-%m") if a.created_at else "unknown"
+        chat_month_counter[month_key] += 1
+
+    chats_by_month = [
+        schemas.MonthlyCount(month=k, count=v)
+        for k, v in sorted(chat_month_counter.items())
+    ]
+
+    return schemas.AnalyticsResponse(
+        papers_by_month=papers_by_month,
+        top_keywords=top_keywords,
+        chats_by_month=chats_by_month,
+        total_saved=len(analyses),
+        total_chats=len(chat_activities),
+    )
+
+
+@app.get("/activity", tags=["Profile"])
+def get_activity(
+    limit: int = 20,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    activities = (
+        db.query(models.UserActivity)
+        .filter(models.UserActivity.user_id == current_user.id)
+        .order_by(models.UserActivity.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return activities
+
+
 # ─────────────────────── Health ─────────────────────────────────────────────
 @app.get("/health", tags=["System"])
 def health_check():
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": "3.0.0"}
 
 
 if __name__ == "__main__":

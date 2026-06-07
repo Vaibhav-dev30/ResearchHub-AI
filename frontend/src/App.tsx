@@ -1,15 +1,43 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { BrainCircuit, Search as SearchIcon, MessageSquare, LayoutDashboard, LogOut } from 'lucide-react';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Link,
+  useLocation,
+} from 'react-router-dom';
+import {
+  BrainCircuit,
+  Search as SearchIcon,
+  MessageSquare,
+  LayoutDashboard,
+  LogOut,
+  User,
+  Sun,
+  Moon,
+  Upload,
+} from 'lucide-react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Search from './pages/Search';
 import AIChat from './pages/AIChat';
+import Profile from './pages/Profile';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
   return token ? <>{children}</> : <Navigate to="/login" />;
+};
+
+const ThemeToggle = () => {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+      {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+    </button>
+  );
 };
 
 const Navigation = () => {
@@ -23,55 +51,96 @@ const Navigation = () => {
     window.location.href = '/login';
   };
 
-  const isActive = (path: string) => location.pathname === path ? 'active' : '';
+  const isActive = (path: string) =>
+    location.pathname === path ? 'active' : '';
 
   return (
     <nav className="navbar">
       <div className="brand">
-        <BrainCircuit className="brand-icon" size={28} />
+        <BrainCircuit className="brand-icon" size={26} />
         ResearchHub AI
       </div>
       <div className="nav-links">
         <Link to="/dashboard" className={`nav-link ${isActive('/dashboard')}`}>
-          <LayoutDashboard size={18} /> Dashboard
+          <LayoutDashboard size={16} />
+          <span>Dashboard</span>
         </Link>
         <Link to="/search" className={`nav-link ${isActive('/search')}`}>
-          <SearchIcon size={18} /> Search Papers
+          <SearchIcon size={16} />
+          <span>Search</span>
         </Link>
         <Link to="/chat" className={`nav-link ${isActive('/chat')}`}>
-          <MessageSquare size={18} /> AI Chat
+          <MessageSquare size={16} />
+          <span>AI Chat</span>
         </Link>
-        <button onClick={handleLogout} className="btn" style={{ marginLeft: '1rem', padding: '0.4rem 1rem' }}>
-          <LogOut size={16} /> Logout
+        <Link to="/profile" className={`nav-link ${isActive('/profile')}`}>
+          <User size={16} />
+          <span>Profile</span>
+        </Link>
+        <ThemeToggle />
+        <button
+          onClick={handleLogout}
+          className="btn btn-sm"
+          style={{ marginLeft: '0.5rem' }}
+          title="Logout"
+        >
+          <LogOut size={15} />
+          <span>Logout</span>
         </button>
       </div>
     </nav>
   );
 };
 
-const App = () => {
-  return (
-    <BrowserRouter>
-      <div className="page-container">
-        <Navigation />
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+const AppRoutes = () => (
+  <div className="page-container">
+    <Navigation />
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route
+        path="/dashboard"
+        element={
+          <PrivateRoute>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/search"
+        element={
+          <PrivateRoute>
+            <Search />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <PrivateRoute>
+            <AIChat />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <PrivateRoute>
+            <Profile />
+          </PrivateRoute>
+        }
+      />
+    </Routes>
+  </div>
+);
 
-          <Route path="/dashboard" element={
-            <PrivateRoute><Dashboard /></PrivateRoute>
-          } />
-          <Route path="/search" element={
-            <PrivateRoute><Search /></PrivateRoute>
-          } />
-          <Route path="/chat" element={
-            <PrivateRoute><AIChat /></PrivateRoute>
-          } />
-        </Routes>
-      </div>
+const App = () => (
+  <ThemeProvider>
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
-  );
-};
+  </ThemeProvider>
+);
 
 export default App;
