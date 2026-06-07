@@ -17,12 +17,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/ ./backend/
 
-# Pre-download the sentence-transformer model during build so it doesn't happen at runtime
+# Pre-download the fastembed model during build so it doesn't happen at runtime
 # This bakes the 90MB model directly into the Docker image
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2')"
 
-# Expose port
+# Expose port (fallback for local)
 EXPOSE 8000
 
-# Run the FastAPI server
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Optimize PyTorch memory footprint for 512MB Render free tier
+ENV MALLOC_ARENA_MAX=2
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+
+# Run the FastAPI server using the PORT environment variable provided by Render
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
