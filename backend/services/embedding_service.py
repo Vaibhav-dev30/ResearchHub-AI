@@ -2,7 +2,7 @@ from fastembed import TextEmbedding
 
 # Load model globally so it's loaded only once into memory
 # fastembed automatically downloads and caches the model
-model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2", threads=1, providers=["CPUExecutionProvider"])
 
 def get_embedding(text: str) -> list[float]:
     """

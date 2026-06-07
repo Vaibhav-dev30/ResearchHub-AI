@@ -24,11 +24,12 @@ RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='se
 # Expose port (fallback for local)
 EXPOSE 8000
 
-# Optimize PyTorch memory footprint for 512MB Render free tier
+# Optimize PyTorch/ONNX memory footprint for 512MB Render free tier
 ENV MALLOC_ARENA_MAX=2
 ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 ENV OPENBLAS_NUM_THREADS=1
+ENV PYTHONMALLOC=malloc
 
-# Run the FastAPI server using the PORT environment variable provided by Render
-CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Run the FastAPI server (explicitly restrict workers to 1 to avoid process forking overhead)
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
