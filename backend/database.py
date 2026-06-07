@@ -2,17 +2,24 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# In Docker the /data directory is a mounted volume; locally it falls back to ./sql_app.db
-DB_DIR = os.getenv("DB_DIR", ".")
-os.makedirs(DB_DIR, exist_ok=True)
+# Supports both SQLite (local dev) and PostgreSQL (Vercel/Neon production)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_DIR}/sql_app.db"
+if not DATABASE_URL:
+    # Local development fallback — SQLite
+    DB_DIR = os.getenv("DB_DIR", ".")
+    os.makedirs(DB_DIR, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{DB_DIR}/sql_app.db"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Neon/Render provide "postgres://" but SQLAlchemy needs "postgresql://"
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+is_sqlite = DATABASE_URL.startswith("sqlite")
+connect_args = {"check_same_thread": False} if is_sqlite else {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
 

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "name": "researchhub-frontend",
+      "path": "frontend"
+    },
+    {
+      "name": "researchhub-backend",
+      "path": "backend"
+    }
+  ]
+}
