@@ -16,7 +16,6 @@ import {
   User,
   Sun,
   Moon,
-  Upload,
 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Login from './pages/Login';
@@ -92,48 +91,34 @@ const Navigation = () => {
   );
 };
 
-const AppRoutes = () => (
-  <div className="page-container">
-    <Navigation />
-    <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route
-        path="/dashboard"
-        element={
-          <PrivateRoute>
-            <Dashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/search"
-        element={
-          <PrivateRoute>
-            <Search />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/chat"
-        element={
-          <PrivateRoute>
-            <AIChat />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <PrivateRoute>
-            <Profile />
-          </PrivateRoute>
-        }
-      />
-    </Routes>
-  </div>
-);
+const AppRoutes = () => {
+  const location = useLocation();
+  const isAuthPage = ['/login', '/register'].includes(location.pathname);
+
+  if (isAuthPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <div className="page-container">
+      <Navigation />
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+        <Route path="/search" element={<PrivateRoute><Search /></PrivateRoute>} />
+        <Route path="/chat" element={<PrivateRoute><AIChat /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+        {/* Fallback for any unknown route */}
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </div>
+  );
+};
 
 const App = () => (
   <ThemeProvider>
