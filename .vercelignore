@@ -1,0 +1,6 @@
+backend/
+docker-compose.yml
+Dockerfile
+render.yaml
+task.md
+prd.md
