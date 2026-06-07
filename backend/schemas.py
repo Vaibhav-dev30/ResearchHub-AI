@@ -122,3 +122,21 @@ class ActivityResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ── PDF Semantic Chat ────────────────────────────────────────────────────────
+class UploadedPaperResponse(BaseModel):
+    id: int
+    filename: str
+    title: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class PDFChatRequest(BaseModel):
+    message: str
+    paper_id: int
+
+class PDFChatResponse(BaseModel):
+    response: str
+    context_used: List[str]

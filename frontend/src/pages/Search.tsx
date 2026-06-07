@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search as SearchIcon, Beaker, FileText, ChevronRight, ExternalLink, Loader2, Atom } from 'lucide-react';
+import { Search as SearchIcon, Beaker, FileText, ChevronRight, ExternalLink, Loader2, Atom, Share2 } from 'lucide-react';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -107,15 +107,24 @@ const Search = () => {
                     Analyze <ChevronRight size={14} />
                   </button>
                   {paper.arxiv_url && (
-                    <a
-                      href={paper.arxiv_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn"
-                      style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', textDecoration: 'none' }}
-                    >
-                      ArXiv <ExternalLink size={14} />
-                    </a>
+                    <>
+                      <button
+                        className="btn"
+                        onClick={() => navigate(`/citations/${paper.arxiv_url?.split('/').pop()}`)}
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', borderColor: 'rgba(167,139,250,0.5)', color: '#A78BFA' }}
+                      >
+                        Citation Graph <Share2 size={14} />
+                      </button>
+                      <a
+                        href={paper.arxiv_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.875rem', textDecoration: 'none' }}
+                      >
+                        ArXiv <ExternalLink size={14} />
+                      </a>
+                    </>
                   )}
                 </div>
               </div>

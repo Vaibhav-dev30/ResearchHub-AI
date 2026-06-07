@@ -16,14 +16,17 @@ import {
   User,
   Sun,
   Moon,
+  FileText,
 } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Search from './pages/Search';
+import PDFUpload from './pages/PDFUpload';
 import AIChat from './pages/AIChat';
 import Profile from './pages/Profile';
+import CitationGraph from './pages/CitationGraph';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
@@ -68,6 +71,10 @@ const Navigation = () => {
           <SearchIcon size={16} />
           <span>Search</span>
         </Link>
+        <Link to="/pdf-upload" className={`nav-link ${isActive('/pdf-upload')}`}>
+          <FileText size={16} />
+          <span>PDFs</span>
+        </Link>
         <Link to="/chat" className={`nav-link ${isActive('/chat')}`}>
           <MessageSquare size={16} />
           <span>AI Chat</span>
@@ -111,6 +118,8 @@ const AppRoutes = () => {
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/search" element={<PrivateRoute><Search /></PrivateRoute>} />
+        <Route path="/pdf-upload" element={<PrivateRoute><PDFUpload /></PrivateRoute>} />
+        <Route path="/citations/:arxiv_id" element={<PrivateRoute><CitationGraph /></PrivateRoute>} />
         <Route path="/chat" element={<PrivateRoute><AIChat /></PrivateRoute>} />
         <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         {/* Fallback for any unknown route */}

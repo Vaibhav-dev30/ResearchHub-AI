@@ -1,7 +1,7 @@
 import os
 import requests
 import xml.etree.ElementTree as ET
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -13,6 +13,9 @@ import models, schemas, auth, database
 from ai.summarizer import summarize_text
 from ai.keyword_extractor import extract_keywords
 from ai.chatbot import chat_with_llm
+from services.pdf_processor import process_pdf
+from services.embedding_service import get_embeddings
+from services.semantic_retriever import retrieve_relevant_chunks
 
 load_dotenv()
 
@@ -169,6 +172,122 @@ def analyze_paper(
         "authors": request.authors or "",
     }
 
+
+from services.citation_service import get_citation_graph
+
+# ─────────────────────── Citation Graph Routes ──────────────────────────────
+@app.get("/citation-graph/{arxiv_id}", tags=["Research"])
+def fetch_citation_graph(
+    arxiv_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Fetch citation and reference nodes/edges from Semantic Scholar."""
+    # Semantic Scholar sometimes struggles with ArXiv versions (e.g. 2106.09685v1), strip version:
+    base_arxiv_id = arxiv_id.split('v')[0] if 'v' in arxiv_id else arxiv_id
+    graph_data = get_citation_graph(base_arxiv_id)
+    
+    if not graph_data["nodes"]:
+        raise HTTPException(status_code=404, detail="Citation data not found for this paper.")
+        
+    _log_activity(db, current_user.id, "citation_graph", {"arxiv_id": base_arxiv_id})
+    return graph_data
+
+
+
+# ─────────────────────── PDF Semantic Chat Routes ───────────────────────────
+@app.post("/upload-pdf", response_model=schemas.UploadedPaperResponse, tags=["PDF"])
+async def upload_pdf(
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+        
+    # Read file
+    content = await file.read()
+    
+    # Process PDF into chunks
+    chunks = process_pdf(content)
+    if not chunks:
+        raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        
+    # Generate embeddings
+    embeddings = get_embeddings(chunks)
+    
+    # Save to database
+    paper = models.UploadedPaper(
+        user_id=current_user.id,
+        filename=file.filename,
+        title=file.filename.replace('.pdf', '')
+    )
+    db.add(paper)
+    db.flush() # flush to get paper.id
+    
+    # Save chunks with embeddings
+    for chunk, embedding in zip(chunks, embeddings):
+        paper_chunk = models.PaperChunk(
+            paper_id=paper.id,
+            content=chunk,
+            embedding=embedding
+        )
+        db.add(paper_chunk)
+        
+    db.commit()
+    db.refresh(paper)
+    _log_activity(db, current_user.id, "upload_pdf", {"filename": file.filename})
+    return paper
+
+@app.get("/uploaded-papers", response_model=List[schemas.UploadedPaperResponse], tags=["PDF"])
+def get_uploaded_papers(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    return db.query(models.UploadedPaper).filter(models.UploadedPaper.user_id == current_user.id).order_by(models.UploadedPaper.created_at.desc()).all()
+
+@app.delete("/uploaded-papers/{paper_id}", tags=["PDF"])
+def delete_uploaded_paper(
+    paper_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    paper = db.query(models.UploadedPaper).filter(models.UploadedPaper.id == paper_id, models.UploadedPaper.user_id == current_user.id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+    
+    db.delete(paper)
+    db.commit()
+    _log_activity(db, current_user.id, "delete_pdf", {"paper_id": paper_id})
+    return {"status": "deleted"}
+
+@app.post("/pdf-chat", response_model=schemas.PDFChatResponse, tags=["PDF"])
+def chat_with_pdf(
+    request: schemas.PDFChatRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    # Verify paper belongs to user
+    paper = db.query(models.UploadedPaper).filter(models.UploadedPaper.id == request.paper_id, models.UploadedPaper.user_id == current_user.id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found or unauthorized")
+        
+    # Retrieve relevant chunks from pgvector
+    relevant_chunks = retrieve_relevant_chunks(db, request.message, paper_id=request.paper_id, limit=4)
+    
+    if not relevant_chunks:
+        return {"response": "I couldn't find any relevant information in the paper to answer your question.", "context_used": []}
+        
+    # Build prompt context
+    context_text = "\n\n---\n\n".join(relevant_chunks)
+    system_prompt = f"You are a helpful research assistant. Use the following excerpts from a research paper to answer the user's question. If the answer is not contained in the excerpts, say 'I don't have enough information from the paper to answer that.'\n\nPaper Excerpts:\n{context_text}"
+    
+    # Call existing LLM logic (we pass the chunks as context)
+    response = chat_with_llm(request.message, paper_context=system_prompt)
+    
+    _log_activity(db, current_user.id, "pdf_chat", {"paper_id": request.paper_id})
+    
+    return {"response": response, "context_used": relevant_chunks}
 
 # ─────────────────────── Saved Analyses Routes ──────────────────────────────
 @app.post("/saved-analyses", response_model=schemas.SavedAnalysisResponse, tags=["Library"])

@@ -68,3 +68,29 @@ class UserActivity(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="activity")
+
+class UploadedPaper(Base):
+    """Metadata for an uploaded PDF paper."""
+    __tablename__ = "uploaded_papers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    title = Column(String, default="")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    chunks = relationship("PaperChunk", back_populates="paper", cascade="all, delete-orphan")
+
+class PaperChunk(Base):
+    """Text chunks and their embeddings for semantic search."""
+    __tablename__ = "paper_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paper_id = Column(Integer, ForeignKey("uploaded_papers.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    
+    # 384 dimensions for all-MiniLM-L6-v2 model
+    from pgvector.sqlalchemy import Vector
+    embedding = Column(Vector(384))
+
+    paper = relationship("UploadedPaper", back_populates="chunks")

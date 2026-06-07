@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   Bot, User, Send, Zap, BookOpen, BookmarkCheck, Download,
-  Loader2, CheckCircle2, Info
+  Loader2, CheckCircle2, Info, FileText
 } from 'lucide-react';
 import api from '../api';
 
@@ -16,6 +16,14 @@ interface AnalysisResult {
 interface Message {
   role: 'user' | 'sys';
   text: string;
+  context_used?: string[];
+}
+
+interface UploadedPaper {
+  id: number;
+  filename: string;
+  title: string;
+  created_at: string;
 }
 
 const AIChat = () => {
@@ -36,6 +44,10 @@ const AIChat = () => {
   const [saved, setSaved] = useState(false);
   const [paperContextActive, setPaperContextActive] = useState(!!statePaperText);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  // PDF Chat Mode State
+  const [uploadedPapers, setUploadedPapers] = useState<UploadedPaper[]>([]);
+  const [selectedPaperId, setSelectedPaperId] = useState<number | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +64,18 @@ const AIChat = () => {
       }]);
     }
   }, []); // only on mount
+  
+  useEffect(() => {
+    const fetchPapers = async () => {
+      try {
+        const res = await api.get('/uploaded-papers');
+        setUploadedPapers(res.data);
+      } catch (err) {
+        console.error('Failed to fetch uploaded papers', err);
+      }
+    };
+    fetchPapers();
+  }, []);
 
   const handleSendChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,12 +87,19 @@ const AIChat = () => {
     setLoading(true);
 
     try {
-      const payload: { message: string; paper_context?: string } = { message: userMsg };
-      if (paperContextActive && paperInput.trim()) {
-        payload.paper_context = paperInput;
+      if (selectedPaperId) {
+        // PDF Semantic Chat Mode
+        const res = await api.post('/pdf-chat', { message: userMsg, paper_id: selectedPaperId });
+        setMessages(prev => [...prev, { role: 'sys', text: res.data.response, context_used: res.data.context_used }]);
+      } else {
+        // Normal Chat Mode
+        const payload: { message: string; paper_context?: string } = { message: userMsg };
+        if (paperContextActive && paperInput.trim()) {
+          payload.paper_context = paperInput;
+        }
+        const res = await api.post('/chat', payload);
+        setMessages(prev => [...prev, { role: 'sys', text: res.data.reply }]);
       }
-      const res = await api.post('/chat', payload);
-      setMessages(prev => [...prev, { role: 'sys', text: res.data.reply }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'sys', text: 'Error connecting to the AI core.' }]);
     } finally {
@@ -162,11 +193,35 @@ const AIChat = () => {
 
       {/* ── Sidebar ── */}
       <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', height: 'fit-content' }}>
+        
+        {/* Semantic PDF Selection */}
         <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0' }}>
-          <BookOpen size={20} /> Content Analyzer
+          <FileText size={20} /> PDF Semantic Chat
         </h3>
         <p style={{ fontSize: '0.875rem', color: 'var(--secondary-color)', margin: 0 }}>
-          Paste paper abstract or full text for deep AI extraction — summary, findings, research questions, and keywords.
+          Select an uploaded PDF to chat specifically with its contents using semantic vector search.
+        </p>
+        
+        <select 
+          className="input-field" 
+          value={selectedPaperId || ''} 
+          onChange={(e) => setSelectedPaperId(e.target.value ? Number(e.target.value) : null)}
+          style={{ marginBottom: '1rem' }}
+        >
+          <option value="">-- General Chat (No PDF Selected) --</option>
+          {uploadedPapers.map(p => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </select>
+
+        <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
+
+        {/* Text Analyzer */}
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0' }}>
+          <BookOpen size={20} /> Quick Analyzer
+        </h3>
+        <p style={{ fontSize: '0.875rem', color: 'var(--secondary-color)', margin: 0 }}>
+          Paste abstract or full text for deep AI extraction.
         </p>
 
         <textarea
@@ -174,20 +229,21 @@ const AIChat = () => {
           placeholder="Paste scientific text here..."
           value={paperInput}
           onChange={(e) => setPaperInput(e.target.value)}
-          style={{ minHeight: '200px', fontSize: '0.875rem', marginBottom: 0 }}
+          disabled={selectedPaperId !== null}
+          style={{ minHeight: '160px', fontSize: '0.875rem', marginBottom: 0, opacity: selectedPaperId !== null ? 0.5 : 1 }}
         />
 
         <button
           className="btn btn-primary"
           onClick={handleAnalyzePaper}
-          disabled={analyzing || !paperInput.trim()}
+          disabled={analyzing || !paperInput.trim() || selectedPaperId !== null}
           id="run-analysis-btn"
         >
           {analyzing ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <><Zap size={16} /> Run Analysis</>}
         </button>
 
         {/* Paper context toggle */}
-        {paperInput.trim() && (
+        {paperInput.trim() && selectedPaperId === null && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--secondary-color)', cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -195,17 +251,8 @@ const AIChat = () => {
               onChange={e => setPaperContextActive(e.target.checked)}
               style={{ accentColor: 'var(--primary-color)' }}
             />
-            Prime chat with this paper
+            Prime general chat with this text
           </label>
-        )}
-
-        {paperContextActive && paperInput.trim() && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', padding: '0.75rem', background: 'rgba(88, 166, 255, 0.07)', borderRadius: '8px', border: '1px solid rgba(88, 166, 255, 0.2)' }}>
-            <Info size={14} style={{ color: 'var(--primary-color)', marginTop: '2px', flexShrink: 0 }} />
-            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--primary-color)', lineHeight: 1.4 }}>
-              Chat is now primed with the paper context. AI answers will reference the loaded paper.
-            </p>
-          </div>
         )}
 
         {/* Save & Export actions */}
@@ -245,7 +292,7 @@ const AIChat = () => {
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'rgba(13, 17, 23, 0.4)' }}>
           <button style={tabBtnStyle(activeTab === 'chat')} onClick={() => setActiveTab('chat')} id="tab-chat">
-            <Bot size={18} /> General Chat
+            <Bot size={18} /> {selectedPaperId ? 'PDF Semantic Chat' : 'General Chat'}
           </button>
           <button style={tabBtnStyle(activeTab === 'analysis')} onClick={() => setActiveTab('analysis')} id="tab-analysis">
             <Zap size={18} /> Analysis Results
@@ -263,6 +310,18 @@ const AIChat = () => {
                     {msg.role === 'user' ? 'You' : 'AI Agent'}
                   </div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+                  {msg.context_used && msg.context_used.length > 0 && (
+                    <details style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--secondary-color)' }}>
+                      <summary style={{ cursor: 'pointer', opacity: 0.8 }}>View retrieved context ({msg.context_used.length} chunks)</summary>
+                      <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {msg.context_used.map((chunk, i) => (
+                          <div key={i} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', borderLeft: '2px solid var(--primary-color)' }}>
+                            {chunk}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               ))}
               {loading && (
@@ -279,7 +338,7 @@ const AIChat = () => {
                 id="chat-input"
                 className="input-field"
                 style={{ marginBottom: 0 }}
-                placeholder={paperContextActive ? 'Ask about the loaded paper...' : 'Ask about research methodology, literature...'}
+                placeholder={selectedPaperId ? 'Ask anything about the selected PDF...' : (paperContextActive ? 'Ask about the loaded paper...' : 'Ask about research methodology, literature...')}
                 value={inputVal}
                 onChange={e => setInputVal(e.target.value)}
               />

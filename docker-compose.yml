@@ -1,44 +1,12 @@
+version: '3.8'
 
 services:
-  # ─── FastAPI Backend ──────────────────────────────────────────────────────────
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: researchhub-backend
-    restart: unless-stopped
+    build: .
     ports:
       - "8000:8000"
     env_file:
-      - ./backend/.env
-    environment:
-      DB_DIR: /data
+      - backend/.env
     volumes:
-      # Named volume mounts to /data inside the container for SQLite persistence
-      - db_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # ─── React Frontend (Vite → Nginx) ───────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        # This bakes the API URL into the static bundle at build time
-        VITE_API_URL: http://localhost:8000
-    container_name: researchhub-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-
-volumes:
-  db_data:
-    driver: local
+      - ./backend:/app/backend
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
