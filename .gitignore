@@ -7,8 +7,13 @@ __pycache__/
 backend/venv/
 backend/sql_app.db
 
-# Environments
+# Environments (.env.example files ARE tracked intentionally)
 .env
+backend/.env
+frontend/.env
+
+# SQLite persistence volume (Docker)
+data/
 
 # Node
 frontend/node_modules/

@@ -1,302 +1,235 @@
-# ResearchHub AI
-### Intelligent Research Paper Management System using Agentic AI
+# ResearchHub AI v2.0
+### AI-Powered Academic Research Management Platform
 
-ResearchHub AI is a production-ready full-stack AI-powered research management system built with FastAPI, React (TypeScript), SQLite, and Groq’s Llama3 model. It enables intelligent research paper search, AI-based analysis, and conversational interaction using modular Agentic AI architecture.
-
----
-
-## Features
-
-- Secure JWT-based Authentication
-- Research Paper Search API
-- AI-powered Paper Analysis
-- 150–200 word Summarization
-- Key Findings Extraction
-- 5 Research Questions Generation
-- 10 Keyword Extraction
-- Conversational AI Chat
-- Modular AI Agent Design
-- SQLite with SQLAlchemy ORM
-- Environment-based Configuration
-- CORS Enabled Backend
-- Production Ready Architecture
+ResearchHub AI is a full-stack, production-ready AI research management system built with **FastAPI**, **React + TypeScript (Vite)**, **SQLite/SQLAlchemy**, and **Groq's LLaMA 3** model via the Groq API. It enables real-time academic paper discovery via **ArXiv**, AI-powered paper analysis, contextual AI conversations, and personal research library management.
 
 ---
 
-## Tech Stack
+## ✨ Features
 
-### Backend
-- FastAPI
-- Groq API (llama3-8b-8192)
-- SQLite
-- SQLAlchemy
-- JWT Authentication (python-jose)
-- Passlib (bcrypt hashing)
-- Python-dotenv
-- Uvicorn
+### 🔐 Authentication
+- Secure JWT-based registration and login
+- bcrypt password hashing
+- Token stored in localStorage with 7-day expiry
 
-### Frontend
-- React
-- TypeScript
-- Axios
-- Protected Routes
-- Vite
+### 🔍 Literature Search
+- **Live ArXiv API integration** — search millions of real papers in real-time
+- Results include title, abstract, authors, and direct ArXiv link
+- One-click redirect from any result to the AI analysis interface
+
+### 🤖 AI Paper Analysis (Groq + LLaMA 3)
+- 150–200 word academic summary
+- Key findings extraction
+- 5 research questions generation
+- 10 keyword extraction
+- Powered by `llama-3.1-8b-instant` via the Groq API
+
+### 💬 Contextual AI Chat
+- General research chat assistant
+- **Paper-primed chat**: toggle paper context so the AI answers specifically about a loaded paper
+- Seamless chat initialization from Search or Library
+
+### 📚 Saved Protocols Library
+- Save any analysis to your personal library (persisted in database per user)
+- Expandable cards with summary and keywords
+- Open any saved paper directly in a primed AI chat session
+- Delete entries from the dashboard
+
+### 📤 Export
+- Export full analysis (summary + keywords) to a Markdown `.md` file
+
+### 🚀 Deployment Ready
+- `.env` + `.env.example` templates for both backend and frontend
+- `Dockerfile` for backend (Python 3.11 slim + Uvicorn)
+- `Dockerfile` for frontend (Node 20 build + Nginx Alpine)
+- `docker-compose.yml` to orchestrate both services
+- Health check endpoint at `/health`
 
 ---
 
-## Project Structure
+## 🗂 Project Structure
 
 ```
 ResearchHub-AI/
-│
 ├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── database.py
-│   │   ├── models.py
-│   │   ├── schemas.py
-│   │   ├── auth.py
-│   │   ├── dependencies.py
-│   │
-│   │   ├── ai/
-│   │   │   ├── summarizer.py
-│   │   │   ├── keyword_extractor.py
-│   │   │   ├── chatbot.py
-│   │
-│   │   ├── routes/
-│   │   │   ├── auth_routes.py
-│   │   │   ├── ai_routes.py
-│   │   │   ├── search_routes.py
-│   │
+│   ├── ai/
+│   │   ├── chatbot.py          # Groq LLM chat (supports paper context)
+│   │   ├── keyword_extractor.py
+│   │   └── summarizer.py
+│   ├── auth.py
+│   ├── database.py
+│   ├── main.py                 # All API endpoints
+│   ├── models.py               # User, Paper, SavedAnalysis models
+│   ├── schemas.py              # Pydantic schemas
 │   ├── requirements.txt
-│   ├── .env
+│   ├── .env.example            ← copy to .env and fill in values
+│   └── Dockerfile
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── pages/
+│   │   │   ├── Dashboard.tsx   # Saved Protocols Library
+│   │   │   ├── Search.tsx      # ArXiv search
+│   │   │   ├── AIChat.tsx      # Analysis + Chat + Save + Export
 │   │   │   ├── Login.tsx
-│   │   │   ├── Register.tsx
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Search.tsx
-│   │   │   ├── Chat.tsx
-│   │   │
-│   │   ├── services/api.ts
+│   │   │   └── Register.tsx
+│   │   ├── api.ts              # Axios with env-based base URL
 │   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │
-│   ├── package.json
+│   │   └── main.tsx
+│   ├── .env.example            ← copy to .env and fill in values
+│   └── Dockerfile
 │
+├── docker-compose.yml
+├── .gitignore
 └── README.md
 ```
 
 ---
 
-# Backend Setup
+## ⚡ Local Development Setup
 
-## 1. Navigate to Backend
+### 1. Backend
 
 ```bash
 cd backend
-```
-
-## 2. Install Dependencies
-
-```bash
 pip install -r requirements.txt
 ```
 
-### requirements.txt
-
-```
-fastapi
-uvicorn
-groq
-python-dotenv
-sqlalchemy
-passlib[bcrypt]
-python-jose
-pydantic
-requests
-```
-
----
-
-## 3. Create Environment File
-
-Create a `.env` file inside the `backend/` directory:
-
-```
-GROQ_API_KEY=your_groq_api_key_here
-SECRET_KEY=your_secret_key_here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-```
-
----
-
-## 4. Run Backend Server
-
+Create `.env` from template:
 ```bash
-uvicorn app.main:app --reload
+cp .env.example .env
 ```
 
-Backend URL:
-```
-http://127.0.0.1:8000
+Edit `backend/.env`:
+```env
+GROQ_API_KEY=your_groq_api_key_here
+SECRET_KEY=your_random_secret_key_here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-Swagger API Documentation:
+> **Get your free Groq API key at:** https://console.groq.com/keys
+
+Start the backend:
+```bash
+uvicorn main:app --reload
 ```
-http://127.0.0.1:8000/docs
-```
+
+API available at: `http://localhost:8000`  
+Swagger docs: `http://localhost:8000/docs`
 
 ---
 
-# Frontend Setup
-
-## 1. Navigate to Frontend
+### 2. Frontend
 
 ```bash
 cd frontend
-```
-
-## 2. Install Dependencies
-
-```bash
 npm install
 ```
 
-## 3. Start Development Server
+Create `.env` from template:
+```bash
+cp .env.example .env
+```
 
+Edit `frontend/.env`:
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Start the dev server:
 ```bash
 npm run dev
 ```
 
-Frontend URL:
-```
-http://localhost:5173
-```
+Frontend available at: `http://localhost:5173`
 
 ---
 
-# API Endpoints
+## 🐳 Docker Deployment
 
-## Authentication
-```
-POST /register
-POST /login
-```
-
-## Research Search
-```
-GET /search?query=...
-```
-
-## AI Services
-```
-POST /chat
-POST /analyze-paper
-```
-
----
-
-# Example: Analyze Paper
-
-## Endpoint
-```
-POST /analyze-paper
-```
-
-## Request Body
-
-```json
-{
-  "text": "Research paper content here..."
-}
-```
-
-## Response
-
-```json
-{
-  "summary": "...",
-  "key_findings": [...],
-  "research_questions": [...],
-  "keywords": [...]
-}
-```
-
----
-
-# AI Agent Architecture
-
-```
-ai/
-├── summarizer.py
-├── keyword_extractor.py
-├── chatbot.py
-```
-
-Each AI module is modular, reusable, and independently scalable.
-
----
-
-# Authentication Flow
-
-1. User registers with email and password  
-2. Password is hashed using bcrypt  
-3. JWT token is generated on login  
-4. Token is stored in localStorage  
-5. Protected routes validate JWT before access  
-
----
-
-# Production Deployment
-
-## Backend (Production Mode)
+### Quick Start
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+# 1. Fill in backend environment variables
+cp backend/.env.example backend/.env
+# Edit backend/.env and add your GROQ_API_KEY and SECRET_KEY
+
+# 2. Build and start all services
+docker compose up --build -d
 ```
 
-## Frontend Build
+- **Frontend:** http://localhost
+- **Backend API:** http://localhost:8000
+- **Swagger Docs:** http://localhost:8000/docs
+
+### Stop all services
 
 ```bash
-npm run build
+docker compose down
 ```
 
----
-
-# Future Enhancements
-
-- PostgreSQL migration
-- Docker containerization
-- Redis caching
-- Role-based access control
-- PDF upload and parsing
-- Vector database integration
-- Semantic search
-- CI/CD pipeline
+SQLite data is persisted in the `./data/` volume directory.
 
 ---
 
-## Final Note
+## 📡 API Reference
 
-ResearchHub AI is designed to demonstrate how modern AI systems can be integrated into full-stack applications using a modular and scalable architecture. The project showcases secure authentication, structured backend development, AI agent orchestration, and seamless frontend integration.
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/register` | Create new user |
+| POST | `/login` | Get JWT access token |
 
-This system reflects practical implementation of:
+### Research
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/search?query=...` | Search ArXiv papers (auth required) |
 
-- Agentic AI architecture
-- LLM integration using Groq (Llama3)
-- RESTful API development with FastAPI
-- Secure JWT-based authentication
-- Scalable React + TypeScript frontend design
-- Clean project structuring for production readiness
+### AI
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/chat` | Chat with AI, optional paper context |
+| POST | `/analyze-paper` | Summarize, extract keywords & findings |
 
-The architecture is intentionally modular to allow future expansion such as vector databases, semantic search, document upload pipelines, containerization, and cloud deployment.
+### Library
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/saved-analyses` | Get user's saved analyses |
+| POST | `/saved-analyses` | Save a new analysis |
+| GET | `/saved-analyses/{id}` | Get a specific analysis |
+| DELETE | `/saved-analyses/{id}` | Delete an analysis |
 
-ResearchHub AI represents a foundation for building intelligent research automation systems in real-world environments.
+### System
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check (returns version) |
 
 ---
 
-Built with a focus on clean architecture, security, and scalable AI integration.
+## 🔑 Getting Your Groq API Key
+
+1. Go to [https://console.groq.com/keys](https://console.groq.com/keys)
+2. Sign up or log in
+3. Create a new API key
+4. Paste it into `backend/.env` as `GROQ_API_KEY=your_key_here`
+
+The free tier is extremely generous — plenty for development and demos.
+
+---
+
+## 🛣 Roadmap / Future Enhancements
+
+- [ ] PDF upload and full-text parsing
+- [ ] PostgreSQL migration (production database)
+- [ ] Redis caching for ArXiv search results
+- [ ] Vector database + semantic similarity search
+- [ ] Role-based access control (admin, researcher)
+- [ ] Citation graph visualization
+- [ ] Email verification
+- [ ] CI/CD pipeline (GitHub Actions)
+
+---
+
+Built with ❤️ using FastAPI · React · Groq · ArXiv · SQLAlchemy

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: researchhub-ai-backend
+    runtime: docker
+    # Points to the backend subfolder which contains the Dockerfile
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # You will set this manually in the Render dashboard
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: ALLOWED_ORIGINS
+        sync: false          # Set this to your Vercel frontend URL after deploying
+      - key: DB_DIR
+        value: /data
+    disk:
+      name: sqlite-data
+      mountPath: /data
+      sizeGB: 1

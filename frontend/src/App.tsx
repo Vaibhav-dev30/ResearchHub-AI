@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { BrainCircuit, Search as SearchIcon, MessageSquare, LayoutDashboard, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { BrainCircuit, Search as SearchIcon, MessageSquare, LayoutDashboard, LogOut } from 'lucide-react';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
